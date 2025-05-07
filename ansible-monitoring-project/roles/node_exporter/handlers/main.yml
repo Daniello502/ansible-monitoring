@@ -9,3 +9,7 @@
     state: restarted
     daemon_reload: yes # Ensure systemd reloads config if needed
   listen: Restart node_exporter # <-- This links the handler to the 'notify' name
+
+- name: Reload ufw
+  ansible.builtin.command: ufw reload
+  listen: Reload ufw

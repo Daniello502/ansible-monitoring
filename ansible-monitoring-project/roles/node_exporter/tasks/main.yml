@@ -53,14 +53,15 @@
     daemon_reload: yes # Reload systemd daemon after placing new service file
   register: service_status # Optional: register status
 
-- name: Ensure firewall allows traffic to Node Exporter port
-  # This task needs to handle firewalld (CentOS) and ufw (Ubuntu)
-  # We will use conditionals based on ansible_os_family and firewall_cmd variable
-  ansible.builtin.command: "{{ firewall_cmd }} --zone={{ firewall_zone }} --add-port={{ node_exporter_port }}/tcp --permanent"
-  when:
-    - ansible_os_family == "RedHat"
-    - firewall_cmd == "firewall-cmd" # Ensure we only run firewalld commands if firewalld is expected
-  notify: Reload firewalld # Handler for firewalld
+- name: Ensure firewall allows traffic to Node Exporter port (iptables)
+  ansible.builtin.iptables: # <-- Use the dedicated iptables module
+    chain: INPUT             # <-- Add rule to the INPUT chain
+    protocol: tcp
+    destination_port: "{{ node_exporter_port }}" # <-- Use port variable
+    jump: ACCEPT             # <-- Accept traffic
+    state: present           # <-- Ensure rule is present
+    comment: "Allow Node Exporter traffic" # <-- Add a comment for clarity
+  when: ansible_os_family == "RedHat"
 
 - name: Ensure firewall allows traffic to Node Exporter port (UFW)
   ansible.builtin.command: "{{ firewall_cmd }} allow {{ node_exporter_port }}/tcp"

@@ -17,6 +17,25 @@
     var: install_common_packages_result # <-- Print the whole registered variable
   when: install_common_packages_result is changed # Only show debug if something happened
 
+- name: Ensure firewalld is stopped and disabled on CentOS
+  ansible.builtin.systemd:
+    name: firewalld
+    state: stopped # Ensure it's stopped
+    enabled: no    # Ensure it doesn't start on boot
+  when: ansible_os_family == "RedHat"
+  ignore_errors: yes # Ignore if firewalld wasn't even installed/running
+
+# Ensure iptables and ip6tables services are running and enabled on CentOS
+- name: Ensure iptables services are running and enabled on CentOS
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - iptables
+    - ip6tables
+  when: ansible_os_family == "RedHat"
+  
 - name: Ensure the 'node_exporter' group exists
   ansible.builtin.group:
     name: "{{ node_exporter_group }}" # <-- Uses the node_exporter_group variable
