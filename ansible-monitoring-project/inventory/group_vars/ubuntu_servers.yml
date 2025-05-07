@@ -1,16 +1,12 @@
 
-# Variables specific to CentOS servers
-
-pkg_manager: "yum" # Package manager for CentOS/RHEL
+pkg_manager: "apt"
 common_packages:
-  - epel-release 
   - curl
   - wget
   - tar
   - gzip
-  - systemd
-  
-# Node Exporter service name on CentOS (often matches the binary/install name)
+
+# Node Exporter service name on Ubuntu
 node_exporter_service_name: "node_exporter"
 
 # Directory for systemd service files
@@ -21,11 +17,10 @@ node_exporter_user: "node_exporter"
 node_exporter_group: "node_exporter"
 
 # Shell for the node_exporter user
-node_exporter_shell: "/sbin/nologin"
+node_exporter_shell: "/usr/sbin/nologin" # Different path on Ubuntu
 
 # Path where the node_exporter binary will be installed
 node_exporter_install_dir: "/usr/local/bin"
 
-# Firewall command for CentOS (using firewalld)
-firewall_cmd: "firewall-cmd"
-firewall_zone: "public" # Or your specific zone
+# Firewall command for Ubuntu (using ufw)
+firewall_cmd: "ufw"

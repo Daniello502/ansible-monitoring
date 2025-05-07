@@ -1,0 +1,7 @@
+- name: Deploy the Monitoring Stack
+  hosts: monitoring_agents # <-- Target the group containing all 6 servers (CentOS and Ubuntu)
+  become: yes # <-- Run tasks with elevated privileges (sudo)
+  gather_facts: yes # <-- Gather facts about the target hosts (OS, distribution, etc.)
+
+  roles:
+    - role: common

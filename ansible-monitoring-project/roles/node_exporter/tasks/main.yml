@@ -1,0 +1,70 @@
+# roles/node_exporter/tasks/main.yml
+
+---
+- name: Download Node Exporter archive
+  ansible.builtin.get_url:
+    url: "{{ node_exporter_download_url }}" # <-- Use the variable from group_vars/all.yml
+    dest: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz" # Download to /tmp
+    mode: '0644'
+    checksum: "" # NOTE: For production, always use a checksum!
+  register: download_result
+  # This task only needs to run if the archive isn't already downloaded or the file exists
+
+- name: Extract Node Exporter archive
+  ansible.builtin.unarchive:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+    dest: "/tmp"
+    remote_src: yes # Indicates the source file is on the target node
+    creates: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter" # Only extract if the binary isn't already in the temp dir
+  register: extract_result
+
+- name: Ensure Node Exporter binary directory exists
+  ansible.builtin.file:
+    path: "{{ node_exporter_install_dir }}" # <-- Uses variable from group_vars
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy Node Exporter binary to installation directory
+  ansible.builtin.copy:
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter" # Source from the extracted archive
+    dest: "{{ node_exporter_install_dir }}/node_exporter" # Destination based on variable
+    owner: root
+    group: root
+    mode: '0755'
+    remote_src: yes # Indicates the source file is on the target node (/tmp)
+  notify: Restart node_exporter # Trigger handler if the binary is updated
+
+- name: Ensure Node Exporter systemd service file is in place
+  ansible.builtin.template:
+    src: "node_exporter.service.j2" # <-- We will create this template next
+    dest: "{{ systemd_service_dir }}/node_exporter.service" # <-- Uses variable from group_vars
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart node_exporter # Trigger handler if the service file changes
+
+- name: Ensure Node Exporter service is running and enabled
+  ansible.builtin.systemd:
+    name: "{{ node_exporter_service_name }}" # <-- Uses variable from group_vars
+    state: started
+    enabled: yes
+    daemon_reload: yes # Reload systemd daemon after placing new service file
+  register: service_status # Optional: register status
+
+- name: Ensure firewall allows traffic to Node Exporter port
+  # This task needs to handle firewalld (CentOS) and ufw (Ubuntu)
+  # We will use conditionals based on ansible_os_family and firewall_cmd variable
+  ansible.builtin.command: "{{ firewall_cmd }} --zone={{ firewall_zone }} --add-port={{ node_exporter_port }}/tcp --permanent"
+  when:
+    - ansible_os_family == "RedHat"
+    - firewall_cmd == "firewall-cmd" # Ensure we only run firewalld commands if firewalld is expected
+  notify: Reload firewalld # Handler for firewalld
+
+- name: Ensure firewall allows traffic to Node Exporter port (UFW)
+  ansible.builtin.command: "{{ firewall_cmd }} allow {{ node_exporter_port }}/tcp"
+  when:
+    - ansible_os_family == "Debian" # Ubuntu is in Debian family
+    - firewall_cmd == "ufw" # Ensure we only run ufw commands if ufw is expected
+  notify: Reload ufw # Handler for ufw (ufw reload isn't always needed after 'allow', but good practice)
