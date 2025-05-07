@@ -8,6 +8,7 @@ common_packages:
   - wget
   - tar
   - gzip
+  - firewalld
 
 # Node Exporter service name on CentOS (often matches the binary/install name)
 node_exporter_service_name: "node_exporter"
