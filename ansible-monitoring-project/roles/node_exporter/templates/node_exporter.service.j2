@@ -1,0 +1,16 @@
+# node_exporter.service.j2
+
+[Unit]
+Description=Node Exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User={{ node_exporter_user }}         # <-- Use the node_exporter_user variable
+Group={{ node_exporter_group }}       # <-- Use the node_exporter_group variable
+Type=simple
+ExecStart={{ node_exporter_install_dir }}/node_exporter \  # <-- Use the install directory variable
+  --web.listen-address=":{{ node_exporter_port }}"        # <-- Use the node_exporter_port variable
+
+[Install]
+WantedBy=multi-user.target

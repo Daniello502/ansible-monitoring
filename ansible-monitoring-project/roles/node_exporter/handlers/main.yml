@@ -1,0 +1,11 @@
+# roles/node_exporter/handlers/main.yml
+
+---
+# Handlers are tasks that only run when notified.
+
+- name: Restart node_exporter
+  ansible.builtin.systemd:
+    name: "{{ node_exporter_service_name }}" # <-- Use the service name variable
+    state: restarted
+    daemon_reload: yes # Ensure systemd reloads config if needed
+  listen: Restart node_exporter # <-- This links the handler to the 'notify' name
