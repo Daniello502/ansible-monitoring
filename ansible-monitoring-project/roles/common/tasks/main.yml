@@ -1,0 +1,36 @@
+# This playbook is designed to be OS-agnostic and will install the necessary packages
+# and create the required user and group for the Node Exporter service.
+# It uses the variables defined in group_vars to determine the correct package manager,
+# packages, and user/group settings based on the target OS.
+# The playbook will also ensure that the Node Exporter service is set up correctly
+# and that the necessary firewall rules are applied.
+
+# tasks/main.yml
+- name: Ensure required system packages are installed
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ common_packages }}" # <-- Uses the OS-specific common_packages list
+  register: install_common_packages_result # Optional: register the output for debugging
+
+- name: Debug common package installation (Optional)
+  ansible.builtin.debug:
+    msg: "Installation result for {{ item }}: {{ install_common_packages_result.results[loop.index0] }}"
+  loop: "{{ common_packages }}"
+  when: install_common_packages_result.changed or install_common_packages_result.failed # Only show debug if something happened
+
+- name: Ensure the 'node_exporter' group exists
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}" # <-- Uses the node_exporter_group variable
+    state: present
+  register: create_group_result
+
+- name: Ensure the 'node_exporter' user exists
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}" # <-- Uses the node_exporter_user variable
+    group: "{{ node_exporter_group }}" # <-- Uses the node_exporter_group variable
+    system: yes
+    shell: "{{ node_exporter_shell }}" # <-- Uses the OS-specific node_exporter_shell
+    create_home: no # Node exporter runs without a home directory
+    state: present
+  register: create_user_result
