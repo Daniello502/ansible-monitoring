@@ -17,9 +17,19 @@
     - role: node_exporter
 
 - name: Deploy Prometheus Server
-  hosts: monitoring_servers # <-- This play targets the monitoring server(s)
+  hosts: monitoring_servers
   become: yes
   gather_facts: yes
+
+  vars: 
+    firewall_cmd: >- # Define firewall_cmd conditionally
+      {% if ansible_os_family == 'RedHat' %}
+      "firewall-cmd" # Value for RedHat
+      {% elif ansible_os_family == 'Debian' %}
+      "ufw" # Value for Debian
+      {% else %}
+      "unknown_firewall" # Default value for other OS families
+      {% endif %}# Explicitly load ubuntu_servers.yml
 
   roles:
     - role: prometheus
