@@ -1,0 +1,15 @@
+
+# Variables applicable to ALL hosts
+
+# Default port for Node Exporter
+node_exporter_port: 9100
+
+# Default version for Node Exporter (check the latest stable release on GitHub)
+# Find releases here: https://github.com/prometheus/node_exporter/releases
+node_exporter_version: "1.8.1" # <-- Check for the latest stable version
+
+# Base URL for downloading Node Exporter
+node_exporter_download_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+
+# Note: OS-specific variables like pkg_manager, common_packages, etc.,
+# are defined in group_vars/centos_servers.yml and group_vars/ubuntu_servers.yml

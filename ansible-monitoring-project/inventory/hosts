@@ -14,7 +14,6 @@ ubuntu3 ansible_host=172.18.0.7
 server_for_prometheus ansible_host=172.18.0.4 
 server_for_grafana    ansible_host=172.18.0.9
 
-[monitoring_agents]
-children:
-  centos_servers
-  ubuntu_servers
+[monitoring_agents:children]
+centos_servers
+ubuntu_servers

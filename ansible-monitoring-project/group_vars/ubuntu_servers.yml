@@ -1,0 +1,28 @@
+
+pkg_manager: "apt"
+
+common_packages:
+  - curl
+  - wget
+  - tar
+  - gzip
+  - systemd # Should be present
+
+# Node Exporter service name on Ubuntu
+node_exporter_service_name: "node_exporter"
+
+# Directory for systemd service files
+systemd_service_dir: "/etc/systemd/system"
+
+# User and group for the node_exporter process
+node_exporter_user: "node_exporter"
+node_exporter_group: "node_exporter"
+
+# Shell for the node_exporter user
+node_exporter_shell: "/usr/sbin/nologin" # Different path on Ubuntu
+
+# Path where the node_exporter binary will be installed
+node_exporter_install_dir: "/usr/local/bin"
+
+# Firewall command for Ubuntu (using ufw)
+firewall_cmd: "ufw"
