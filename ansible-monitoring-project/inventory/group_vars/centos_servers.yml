@@ -25,3 +25,11 @@ node_exporter_shell: "/sbin/nologin"
 
 # Path where the node_exporter binary will be installed
 node_exporter_install_dir: "/usr/local/bin"
+
+grafana_repo:
+  name: grafana
+  description: Grafana repository
+  baseurl: "{{ grafana_repo_baseurl_centos }}" # Uses variable from all.yml
+  gpgcheck: yes
+  gpgkey: "{{ grafana_repo_gpgkey_centos }}" # Uses variable from all.yml
+  enabled: yes

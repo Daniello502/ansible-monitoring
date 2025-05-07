@@ -1,11 +1,5 @@
-- name: Deploy the Monitoring Stack
-  hosts: monitoring_agents # <-- Target the group containing all 6 servers (CentOS and Ubuntu)
-  become: yes # <-- Run tasks with elevated privileges (sudo)
-  gather_facts: yes # <-- Gather facts about the target hosts (OS, distribution, etc.)
-
-  roles:
-    - role: common
-    - role: node_exporter
+# This playbook deploys monitoring agents and servers using Ansible roles.
+# It includes tasks for installing and configuring Node Exporter, Prometheus, and Grafana.
 
 - name: Deploy Monitoring Agents (Node Exporter)
   hosts: monitoring_agents # <-- This play targets the agents
@@ -16,20 +10,22 @@
     - role: common
     - role: node_exporter
 
-- name: Deploy Prometheus Server
-  hosts: monitoring_servers
+- name: Deploy Prometheus and Grafana Servers
+  hosts: monitoring_servers # <-- This play targets the monitoring servers
   become: yes
   gather_facts: yes
 
-  vars: 
-    firewall_cmd: >- # Define firewall_cmd conditionally
+  # Keep the vars section to ensure variables like firewall_cmd are defined
+  vars:
+    firewall_cmd: >-
       {% if ansible_os_family == 'RedHat' %}
-      "firewall-cmd" # Value for RedHat
+      "firewall-cmd"
       {% elif ansible_os_family == 'Debian' %}
-      "ufw" # Value for Debian
+      "ufw"
       {% else %}
-      "unknown_firewall" # Default value for other OS families
-      {% endif %}# Explicitly load ubuntu_servers.yml
+      "unknown_firewall"
+      {% endif %}
 
   roles:
-    - role: prometheus
+    - role: prometheus # <-- Include the prometheus role
+    - role: grafana # <-- Include the grafana role

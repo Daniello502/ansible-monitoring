@@ -38,3 +38,14 @@ prometheus_global_scrape_interval: "15s"
 # List of scrape jobs (This will define what Prometheus monitors)
 # We will add our node_exporter targets here later
 prometheus_scrape_jobs: [] # Start with an empty list
+
+# Grafana Variables
+grafana_web_port: 3000 # Default port for Grafana web interface
+
+# Grafana installation details (repository specifics will go in OS group_vars)
+grafana_repo_baseurl_centos: "https://rpm.grafana.com/oss/rpm" # CentOS/RHEL repo URL
+grafana_repo_gpgkey_centos: "https://rpm.grafana.com/gpg.key" # CentOS/RHEL GPG key URL
+grafana_repo_baseurl_ubuntu: "https://apt.grafana.com/dists/bookworm/main/binary-amd64" # Ubuntu repo URL (example for bookworm)
+grafana_repo_gpgkey_ubuntu: "https://apt.grafana.com/gpg.key" # Ubuntu GPG key URL
+grafana_repo_codename_ubuntu: "bookworm" # Ubuntu release codename (adjust if needed)
+grafana_repo_components_ubuntu: "main"

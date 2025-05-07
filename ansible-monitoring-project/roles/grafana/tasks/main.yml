@@ -1,0 +1,86 @@
+# roles/grafana/tasks/main.yml
+
+---
+# Tasks for the grafana role
+
+# Ensure Grafana repository is added (OS-specific)
+- name: Ensure Grafana repository is added on CentOS/RHEL
+  ansible.builtin.yum_repository:
+    name: "{{ grafana_repo.name }}"
+    description: "{{ grafana_repo.description }}"
+    baseurl: "{{ grafana_repo.baseurl }}"
+    gpgcheck: "{{ grafana_repo.gpgcheck }}"
+    gpgkey: "{{ grafana_repo.gpgkey }}"
+    enabled: "{{ grafana_repo.enabled }}"
+    state: present
+  when: ansible_os_family == "RedHat" # Only run on RedHat-based systems
+
+- name: Ensure Grafana repository is added on Ubuntu/Debian
+  ansible.builtin.apt_repository:
+    repo: "{{ grafana_repo.repo }}" # Uses the full repo string from group_vars
+    state: "{{ grafana_repo.state }}"
+    filename: "{{ grafana_repo.filename }}"
+    update_cache: "{{ grafana_repo.update_cache }}"
+  when: ansible_os_family == "Debian" # Only run on Debian-based systems
+
+# Ensure Grafana package is installed (uses OS-specific package manager via common role variable)
+- name: Ensure Grafana package is installed
+  ansible.builtin.package:
+    name: grafana # The package name is usually 'grafana' on both
+    state: present
+  # We don't need an OS-specific when here because the package module
+  # automatically uses the correct package manager (yum/dnf or apt)
+  # based on ansible_pkg_mgr fact (which is set by common role/gather_facts)
+
+# Ensure Grafana service is running and enabled
+- name: Ensure Grafana service is running and enabled
+  ansible.builtin.systemd:
+    name: grafana-server # Service name is typically 'grafana-server'
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+# Ensure firewall allows traffic to Grafana web port (OS-specific)
+# We reuse the firewall variables and logic from the prometheus role tasks
+- name: Ensure firewall allows traffic to Grafana web port (iptables)
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ grafana_web_port }}" # <-- Use Grafana web port variable
+    jump: ACCEPT
+    state: present
+    comment: "Allow Grafana web traffic"
+  when: ansible_os_family == "RedHat"
+
+- name: Ensure firewall allows traffic to Grafana web port (UFW)
+  ansible.builtin.command: "{{ firewall_cmd }} allow {{ grafana_web_port }}/tcp"
+  when:
+    - ansible_os_family == "Debian"
+    - firewall_cmd == "ufw"
+  # No notify needed here unless we add a handler to reload firewalls
+
+# --- Tasks for configuring Prometheus Data Source ---
+
+# Grafana allows configuring data sources via a configuration file provisioned
+# in a specific directory. This is a common and idempotent approach.
+# We'll create a directory for data source provisioning and place a YAML config file there.
+
+- name: Ensure Grafana data source provisioning directory exists
+  ansible.builtin.file:
+    path: /etc/grafana/provisioning/datasources
+    state: directory
+    owner: root # Owned by root, Grafana process reads it
+    group: grafana # Grafana group can read
+    mode: '0750' # Ensure appropriate permissions
+
+- name: Ensure Prometheus data source configuration is in place
+  ansible.builtin.template:
+    src: "prometheus_datasource.yml.j2" # <-- We will create this template next
+    dest: "/etc/grafana/provisioning/datasources/prometheus.yml" # Standard provisioning path
+    owner: root
+    group: grafana
+    mode: '0640' # Ensure appropriate permissions
+  notify: Restart grafana-server # Restart Grafana to pick up new data source config
+
+# Handlers for Grafana service (Restart only for now, reload less common for config)
+# We will create these handlers in handlers/main.yml
