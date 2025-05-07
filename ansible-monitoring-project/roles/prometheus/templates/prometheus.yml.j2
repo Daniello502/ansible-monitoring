@@ -1,0 +1,44 @@
+# prometheus.yml.j2
+
+global:
+  scrape_interval: {{ prometheus_global_scrape_interval }} # <-- Use scrape interval variable
+  # scrape_timeout is set to the global default (10s).
+
+# Attach scrape jobs here
+scrape_configs:
+  # Example job for Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:{{ prometheus_web_port }}'] # Scrape Prometheus's own metrics endpoint
+
+  # Job to scrape Node Exporters
+  - job_name: 'node_exporter'
+    static_configs:
+      # We will dynamically add the list of node_exporter targets here later
+      # For now, this is a placeholder structure.
+      # We'll modify this template in a later step to iterate over hosts.
+      {% if prometheus_scrape_jobs %} # Check if scrape_jobs variable is not empty
+      {% for job in prometheus_scrape_jobs %} # Loop through defined jobs
+      - targets: [ {{ job.target }} ] # Target for this job
+        {% if job.labels is defined %} # Add labels if defined for this job
+        labels:
+          {% for key, value in job.labels.items() %}
+          {{ key }}: "{{ value }}"
+          {% endfor %}
+        {% endif %}
+      {% endfor %}
+      {% else %} # If prometheus_scrape_jobs is empty, add a placeholder or default
+      # Example placeholder - replace with dynamic targets later
+      - targets: ['localhost:9100'] # Placeholder - replace with actual Node Exporter targets
+      {% endif %}
+
+# Alerting configuration (optional - not covered in this playbook)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['localhost:9093']
+
+# Load rules once and periodically evaluate them (optional - not covered in this playbook)
+# rule_files:
+#   - "first_rules.yml"
+#   - "second_rules.yml"

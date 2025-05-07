@@ -6,3 +6,20 @@
   roles:
     - role: common
     - role: node_exporter
+
+- name: Deploy Monitoring Agents (Node Exporter)
+  hosts: monitoring_agents # <-- This play targets the agents
+  become: yes
+  gather_facts: yes
+
+  roles:
+    - role: common
+    - role: node_exporter
+
+- name: Deploy Prometheus Server
+  hosts: monitoring_servers # <-- This play targets the monitoring server(s)
+  become: yes
+  gather_facts: yes
+
+  roles:
+    - role: prometheus

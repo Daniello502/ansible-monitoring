@@ -1,0 +1,120 @@
+# roles/prometheus/tasks/main.yml
+
+---
+- name: Ensure Prometheus user exists
+  ansible.builtin.user:
+    name: "{{ prometheus_user }}" # <-- Uses variable from group_vars
+    system: yes
+    shell: "{{ prometheus_shell }}" # <-- Uses variable from group_vars
+    create_home: no
+    state: present
+
+- name: Ensure Prometheus group exists
+  ansible.builtin.group:
+    name: "{{ prometheus_group }}" # <-- Uses variable from group_vars
+    state: present
+
+- name: Download Prometheus archive
+  ansible.builtin.get_url:
+    url: "{{ prometheus_download_url }}" # <-- Uses variable from group_vars/all.yml
+    dest: "/tmp/prometheus-{{ prometheus_version }}.tar.gz"
+    mode: '0644'
+    checksum: "" # NOTE: Add checksum in production!
+  register: download_result
+
+- name: Extract Prometheus archive
+  ansible.builtin.unarchive:
+    src: "/tmp/prometheus-{{ prometheus_version }}.tar.gz"
+    dest: "/tmp"
+    remote_src: yes
+    creates: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/prometheus" # Check for binary existence
+  register: extract_result
+
+- name: Ensure Prometheus binary installation directory exists
+  ansible.builtin.file:
+    path: "{{ prometheus_binary_install_dir }}" # <-- Uses variable from group_vars
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy Prometheus binaries to installation directory
+  ansible.builtin.copy:
+    src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/{{ item }}" # Copy prometheus and promtool
+    dest: "{{ prometheus_binary_install_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: '0755'
+    remote_src: yes
+  loop:
+    - prometheus
+    - promtool
+  notify: Restart prometheus # Restart if binaries are updated
+
+- name: Ensure Prometheus configuration directory exists
+  ansible.builtin.file:
+    path: "{{ prometheus_config_dir }}" # <-- Uses variable from group_vars
+    state: directory
+    owner: "{{ prometheus_user }}" # Owned by prometheus user
+    group: "{{ prometheus_group }}" # Owned by prometheus group
+    mode: '00755' # Ensure appropriate permissions
+
+- name: Ensure Prometheus data directory exists
+  ansible.builtin.file:
+    path: "{{ prometheus_data_dir }}" # <-- Uses variable from group_vars
+    state: directory
+    owner: "{{ prometheus_user }}" # Owned by prometheus user
+    group: "{{ prometheus_group }}" # Owned by prometheus group
+    mode: '00755' # Ensure appropriate permissions
+
+- name: Ensure Prometheus configuration file is in place
+  ansible.builtin.template:
+    src: "prometheus.yml.j2" # <-- We will create this template next
+    dest: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_group }}"
+    mode: '0644'
+  notify: Reload prometheus # Trigger handler if config changes
+
+- name: Ensure Prometheus systemd service file is in place
+  ansible.builtin.template:
+    src: "prometheus.service.j2" # <-- We will create this template after the config
+    dest: "/etc/systemd/system/prometheus.service" # Standard systemd path
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart prometheus # Trigger handler if service file changes
+
+- name: Ensure Prometheus service is running and enabled
+  ansible.builtin.systemd:
+    name: prometheus # Service name is typically just 'prometheus'
+    state: started
+    enabled: yes
+    daemon_reload: yes # Reload systemd daemon after placing new service file
+
+# Note: Prometheus firewall rule is needed on the MONITORING SERVER(s)
+# The port will be prometheus_web_port (default 9090)
+# We need a firewall task similar to the node_exporter one, but using
+# prometheus_web_port and targeting the monitoring_servers group.
+# Since this role targets monitoring_agents, the firewall task would go here,
+# but it needs to be conditional to only run on the correct OS family firewalld/ufw.
+# Or, we can add a dedicated firewall role, or put these firewall tasks
+# in the main playbook with the correct target and conditions.
+# For simplicity, let's add the firewall task here, conditional on OS family.
+
+- name: Ensure firewall allows traffic to Prometheus web port (iptables)
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "{{ prometheus_web_port }}" # <-- Use Prometheus web port
+    jump: ACCEPT
+    state: present
+    comment: "Allow Prometheus web traffic"
+  when: ansible_os_family == "RedHat" # Only run on RedHat-based systems
+
+- name: Ensure firewall allows traffic to Prometheus web port (UFW)
+  ansible.builtin.command: "{{ firewall_cmd }} allow {{ prometheus_web_port }}/tcp"
+  when:
+    - ansible_os_family == "Debian"
+    - firewall_cmd == "ufw"
+  notify: Reload ufw # Notify UFW handler if needed

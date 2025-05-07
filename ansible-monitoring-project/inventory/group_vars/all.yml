@@ -8,3 +8,33 @@ node_exporter_version: "1.8.1" # <-- Check for the latest stable version
 
 # Base URL for downloading Node Exporter
 node_exporter_download_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+
+# Prometheus Variables
+prometheus_version: "2.50.1" # <-- Check for the latest stable release on GitHub
+# Find releases here: https://github.com/prometheus/prometheus/releases
+prometheus_download_url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+
+# User and group for the prometheus process
+prometheus_user: "prometheus" # Often different from node_exporter user
+prometheus_group: "prometheus" # Often different from node_exporter group
+prometheus_shell: "/usr/sbin/nologin" # Standard nologin shell path
+
+# Path where the prometheus and promtool binaries will be installed
+prometheus_binary_install_dir: "/usr/local/bin"
+
+# Directory for Prometheus configuration and data
+prometheus_config_dir: "/etc/prometheus"
+prometheus_data_dir: "/var/lib/prometheus"
+
+# Default port for Prometheus server HTTP interface
+prometheus_web_port: 9090
+
+# Default port for Prometheus pushgateway (not used in this playbook, but common var)
+# prometheus_pushgateway_port: 9091
+
+# Default scrape interval for jobs
+prometheus_global_scrape_interval: "15s"
+
+# List of scrape jobs (This will define what Prometheus monitors)
+# We will add our node_exporter targets here later
+prometheus_scrape_jobs: [] # Start with an empty list

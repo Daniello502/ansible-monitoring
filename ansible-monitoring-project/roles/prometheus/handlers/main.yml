@@ -1,0 +1,15 @@
+# This file contains handlers for the Prometheus role.
+
+- name: Restart prometheus
+  ansible.builtin.systemd:
+    name: prometheus # Service name
+    state: restarted
+    daemon_reload: yes # Reload systemd daemon
+  listen: Restart prometheus # Matches notify name in tasks
+
+- name: Reload prometheus
+  ansible.builtin.systemd:
+    name: prometheus # Service name
+    state: reloaded # Use reloaded state
+    daemon_reload: yes # Reload systemd daemon
+  listen: Reload prometheus # Matches notify name in tasks

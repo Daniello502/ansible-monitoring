@@ -1,0 +1,21 @@
+# prometheus.service.j2
+
+[Unit]
+Description=Prometheus
+Documentation=https://prometheus.io/docs/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User={{ prometheus_user }}         # <-- Use the prometheus_user variable
+Group={{ prometheus_group }}       # <-- Use the prometheus_group variable
+Type=simple
+Restart=always
+ExecStart={{ prometheus_binary_install_dir }}/prometheus \  # <-- Path to the binary
+  --config.file={{ prometheus_config_dir }}/prometheus.yml \ # <-- Path to the config file
+  --storage.tsdb.path={{ prometheus_data_dir }} \            # <-- Path to the data directory
+  --web.listen-address="0.0.0.0:{{ prometheus_web_port }}"    # <-- Listen on all IPs on web port
+ExecReload=/bin/kill -HUP $MAINPID # Command to reload config
+
+[Install]
+WantedBy=multi-user.target
