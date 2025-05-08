@@ -1,18 +1,18 @@
 [all:vars]
 
 [centos_servers]
-centos2 ansible_host=172.18.0.4
-centos1 ansible_host=172.18.0.3
-centos3 ansible_host=172.18.0.6
+centos1 ansible_host=172.18.0.4
+centos2 ansible_host=172.18.0.9
+centos3 ansible_host=172.18.0.5
 
 [ubuntu_servers]
-ubuntu1 ansible_host=172.18.0.5
-ubuntu2 ansible_host=172.18.0.9
+ubuntu1 ansible_host=172.18.0.2
+ubuntu2 ansible_host=172.18.0.3
 ubuntu3 ansible_host=172.18.0.7
 
 [monitoring_servers]
 server_for_prometheus ansible_host=172.18.0.4 
-server_for_grafana    ansible_host=172.18.0.9
+server_for_grafana ansible_host=172.18.0.3
 
 [monitoring_agents:children]
 centos_servers

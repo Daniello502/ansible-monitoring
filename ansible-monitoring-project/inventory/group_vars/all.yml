@@ -1,51 +1,86 @@
-# This file contains variables that are common across all hosts in the Ansible inventory.
-# Default port for Node Exporter
-node_exporter_port: 9100
+    # This file contains variables that are common across all hosts in the Ansible inventory.
 
-# Default version for Node Exporter (check the latest stable release on GitHub)
-# Find releases here: https://github.com/prometheus/node_exporter/releases
-node_exporter_version: "1.8.1" # <-- Check for the latest stable version
+    # --- Common Packages ---
+    # List of common packages that have the same name across OS families.
+    # OS-specific packages will be defined in OS-specific group_vars files.
+    common_packages:
+      - curl
+      - wget
+      - tar
+      - gzip
+    # iptables-services, ufw, and gnupg are OS-specific and will be defined in
+    # inventory/group_vars/centos_servers.yml and inventory/group_vars/ubuntu_servers.yml
 
-# Base URL for downloading Node Exporter
-node_exporter_download_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+    # --- Node Exporter Variables ---
+    # Default port for Node Exporter
+    node_exporter_port: 9100
 
-# Prometheus Variables
-prometheus_version: "2.50.1" # <-- Check for the latest stable release on GitHub
-# Find releases here: https://github.com/prometheus/prometheus/releases
-prometheus_download_url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
+    # Default version for Node Exporter (check the latest stable release on GitHub)
+    # Find releases here: https://github.com/prometheus/node_exporter/releases
+    node_exporter_version: "1.8.1" # <-- Check for the latest stable version
 
-# User and group for the prometheus process
-prometheus_user: "prometheus" # Often different from node_exporter user
-prometheus_group: "prometheus" # Often different from node_exporter group
-prometheus_shell: "/usr/sbin/nologin" # Standard nologin shell path
+    # Base URL for downloading Node Exporter (constructed in role tasks)
+    # node_exporter_download_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
 
-# Path where the prometheus and promtool binaries will be installed
-prometheus_binary_install_dir: "/usr/local/bin"
+    # User and group for the node_exporter process
+    node_exporter_user: "node_exporter"
+    node_exporter_group: "node_exporter"
+    node_exporter_install_dir: "/usr/local/bin"
+    # Shell path for the node_exporter user (defined conditionally in common role)
+    # node_exporter_shell: "/usr/sbin/nologin" # Or /bin/false depending on OS
 
-# Directory for Prometheus configuration and data
-prometheus_config_dir: "/etc/prometheus"
-prometheus_data_dir: "/var/lib/prometheus"
+    # Installation directory for the node_exporter binary (used in role tasks)
+    # node_exporter_install_dir: "/usr/local/bin"
 
-# Default port for Prometheus server HTTP interface
-prometheus_web_port: 9090
+    # Web listen address and port for Node Exporter (used in service file and firewall)
+    node_exporter_web_listen_address: "0.0.0.0:9100" # Listen on all interfaces on port 9100
+    node_exporter_web_listen_port: 9100 # Just the port number for firewall rules
 
-# Default port for Prometheus pushgateway (not used in this playbook, but common var)
-# prometheus_pushgateway_port: 9091
+    # Node Exporter checksum (fetched dynamically in role tasks)
+    # node_exporter_checksum: "sha256:..."
 
-# Default scrape interval for jobs
-prometheus_global_scrape_interval: "15s"
+    # --- Prometheus Variables ---
+    prometheus_version: "2.50.1" # <-- Check for the latest stable release on GitHub
+    # Find releases here: https://github.com/prometheus/prometheus/releases
+    # Prometheus download URL (constructed in role tasks)
+    prometheus_download_url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
 
-# List of scrape jobs (This will define what Prometheus monitors)
-# We will add our node_exporter targets here later
-prometheus_scrape_jobs: [] # Start with an empty list
+    # User and group for the prometheus process
+    prometheus_user: "prometheus" # Often different from node_exporter user
+    prometheus_group: "prometheus" # Often different from node_exporter group
+    prometheus_shell: "/usr/sbin/nologin" # Standard nologin shell path
 
-# Grafana Variables
-grafana_web_port: 3000 # Default port for Grafana web interface
+    # Path where the prometheus and promtool binaries will be installed
+    prometheus_binary_install_dir: "/usr/local/bin"
 
-# Grafana installation details (repository specifics will go in OS group_vars)
-grafana_repo_baseurl_centos: "https://rpm.grafana.com/oss/rpm" # CentOS/RHEL repo URL
-grafana_repo_gpgkey_centos: "https://rpm.grafana.com/gpg.key" # CentOS/RHEL GPG key URL
-grafana_repo_baseurl_ubuntu: "https://apt.grafana.com/dists/bookworm/main/binary-amd64" # Ubuntu repo URL (example for bookworm)
-grafana_repo_gpgkey_ubuntu: "https://apt.grafana.com/gpg.key" # Ubuntu GPG key URL
-grafana_repo_codename_ubuntu: "bookworm" # Ubuntu release codename (adjust if needed)
-grafana_repo_components_ubuntu: "main"
+    # Directory for Prometheus configuration and data
+    prometheus_config_dir: "/etc/prometheus"
+    prometheus_data_dir: "/var/lib/prometheus"
+
+    # Default port for Prometheus server HTTP interface
+    prometheus_web_port: 9090
+
+    # Default port for Prometheus pushgateway (not used in this playbook, but common var)
+    # prometheus_pushgateway_port: 9091
+
+    # Default scrape interval for jobs
+    prometheus_global_scrape_interval: "15s"
+
+    # List of scrape jobs (This will define what Prometheus monitors)
+    # We will add our node_exporter targets here later
+    prometheus_scrape_jobs: [] # Start with an empty list
+
+    # --- Grafana Variables ---
+    grafana_web_port: 3000 # Default port for Grafana web interface
+
+    # Grafana installation details (repository specifics will go in OS group_vars)
+    # Corrected variables for Ubuntu APT repo
+    grafana_apt_repo_baseurl: "https://apt.grafana.com/" # <-- Base URL
+    grafana_apt_repo_release: "stable" # <-- Grafana release type (stable, beta)
+    grafana_apt_repo_components: "main" # <-- Usually 'main'
+    grafana_repo_gpgkey_ubuntu: "https://apt.grafana.com/gpg.key" # GPG key URL
+
+    # CentOS/RHEL RPM repo details (baseurl seems correct, keep it)
+    grafana_rpm_repo_baseurl: "https://rpm.grafana.com/oss/rpm" # CentOS/RHEL repo URL
+    grafana_repo_gpgkey_centos: "https://rpm.grafana.com/gpg.key" # CentOS/RHEL GPG key URL.
+    

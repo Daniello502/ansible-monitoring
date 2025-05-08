@@ -1,16 +1,13 @@
-# node_exporter.service.j2
-
 [Unit]
 Description=Node Exporter
 Wants=network-online.target
 After=network-online.target
 
 [Service]
-User={{ node_exporter_user }}         # <-- Use the node_exporter_user variable
-Group={{ node_exporter_group }}       # <-- Use the node_exporter_group variable
+User={{ node_exporter_user }}
+Group={{ node_exporter_group }}
 Type=simple
-ExecStart={{ node_exporter_install_dir }}/node_exporter \  # <-- Use the install directory variable
-  --web.listen-address=":{{ node_exporter_port }}"        # <-- Use the node_exporter_port variable
+ExecStart={{ node_exporter_install_dir }}/node_exporter --web.listen-address="{{ node_exporter_web_listen_address }}" --web.telemetry-path="/metrics" --collector.disable-defaults --collector.filesystem.mount-points-exclude="^/(sys|proc|dev)($|/)" --collector.filesystem.fs-types-exclude="^(autofs|binfmt_misc|cgroup|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tmpfs)$"
 
 [Install]
 WantedBy=multi-user.target

@@ -1,71 +1,166 @@
 # roles/node_exporter/tasks/main.yml
 
 ---
+# Use include_vars to load necessary variables dynamically during the play
+# This task is needed because standard group_vars loading seems unreliable in this environment.
+
+- name: Include all variables for Node Exporter tasks
+  ansible.builtin.include_vars:
+    # Use the correct relative path based on your inventory structure
+    file: "../../../inventory/group_vars/all.yml"
+  # No when condition here
+
+# --- Tasks for downloading and installing Node Exporter ---
+
+# Define a variable for the Node Exporter archive filename based on version
+# node_exporter_version is expected to be defined in group_vars/all.yml
+
+# Create node_exporter user and group
+- name: Create Node Exporter system group
+  ansible.builtin.group:
+    name: "{{ node_exporter_group }}"
+    system: yes
+    state: present
+
+- name: Create Node Exporter system user
+  ansible.builtin.user:
+    name: "{{ node_exporter_user }}"
+    system: yes
+    shell: /usr/sbin/nologin
+    group: "{{ node_exporter_group }}"
+    createhome: no
+    state: present
+    
+- name: Set Node Exporter archive filename fact
+  ansible.builtin.set_fact:
+    node_exporter_archive: "node_exporter-{{ node_exporter_version }}.linux-amd64.tar.gz"
+
+# Define a variable for the Node Exporter download URL
+- name: Set Node Exporter download URL fact
+  ansible.builtin.set_fact:
+    node_exporter_download_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version }}/{{ node_exporter_archive }}"
+
+# Define a variable for the Node Exporter installation directory
+# node_exporter_install_dir is expected to be defined in group_vars/all.yml
+- name: Set Node Exporter installation directory fact
+  ansible.builtin.set_fact:
+    node_exporter_install_dir_full: "{{ node_exporter_install_dir }}" # Use the variable from group_vars
+
+# Define the URL for the checksums file
+- name: Set Node Exporter checksums URL fact
+  ansible.builtin.set_fact:
+    node_exporter_checksums_url: "https://github.com/prometheus/node_exporter/releases/download/v{{ node_exporter_version}}/sha256sums.txt"
+
+# Download the SHA256 checksums file
+- name: Download Node Exporter SHA256 checksums file
+  ansible.builtin.get_url:
+    url: "{{ node_exporter_checksums_url }}"
+    dest: "/tmp/sha256sums.txt"
+    mode: '0644'
+    # No checksum verification for the checksums file itself, as we're about to use it
+
+# Extract the checksum for the specific Node Exporter archive from the checksums file
+- name: Extract checksum for Node Exporter archive
+  ansible.builtin.shell: |
+    grep "{{ node_exporter_archive }}" /tmp/sha256sums.txt | awk '{print $1}'
+  register: extracted_checksum # Register the output
+  changed_when: false # This task doesn't change the system state, just extracts info
+
+# Set a fact with the extracted checksum value in the required format
+- name: Set Node Exporter checksum fact
+  ansible.builtin.set_fact:
+    node_exporter_calculated_checksum: "sha256:{{ extracted_checksum.stdout }}"
+  # This fact will be used in the get_url task for the binary
+
+# Download Node Exporter archive
 - name: Download Node Exporter archive
   ansible.builtin.get_url:
-    url: "{{ node_exporter_download_url }}" # <-- Use the variable from group_vars/all.yml
-    dest: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz" # Download to /tmp
-    mode: '0644'
-    checksum: "" # NOTE: For production, always use a checksum!
-  register: download_result
-  # This task only needs to run if the archive isn't already downloaded or the file exists
+    url: "{{ node_exporter_download_url }}"
+    dest: "/tmp/{{ node_exporter_archive }}"
+    mode: '0644' # Standard permissions for downloaded file
+    checksum: "{{ node_exporter_calculated_checksum }}" # <-- Use the dynamically calculated checksum
+  register: download_result # Register result to check if download happened
 
+# Extract Node Exporter archive
 - name: Extract Node Exporter archive
   ansible.builtin.unarchive:
-    src: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
-    dest: "/tmp"
-    remote_src: yes # Indicates the source file is on the target node
-    creates: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter" # Only extract if the binary isn't already in the temp dir
-  register: extract_result
+    src: "/tmp/{{ node_exporter_archive }}"
+    dest: "/tmp" # Extract to /tmp first
+    remote_src: yes # Source is on the remote machine
+  when: download_result.changed # Only extract if download was new/changed
 
+# Ensure Node Exporter binary directory exists
 - name: Ensure Node Exporter binary directory exists
   ansible.builtin.file:
-    path: "{{ node_exporter_install_dir }}" # <-- Uses variable from group_vars
+    path: "{{ node_exporter_install_dir_full }}" # Use the full installation directory path
     state: directory
     owner: root
     group: root
-    mode: '0755'
+    mode: '0755' # Standard permissions for executable directory
 
+# Copy Node Exporter binary to installation directory
 - name: Copy Node Exporter binary to installation directory
   ansible.builtin.copy:
-    src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter" # Source from the extracted archive
-    dest: "{{ node_exporter_install_dir }}/node_exporter" # Destination based on variable
+    src: "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64/node_exporter" # Path to extracted binary
+    dest: "{{ node_exporter_install_dir_full }}/node_exporter" # Destination path
     owner: root
     group: root
-    mode: '0755'
-    remote_src: yes # Indicates the source file is on the target node (/tmp)
-  notify: Restart node_exporter # Trigger handler if the binary is updated
+    mode: '0755' # Standard permissions for executable
+    remote_src: yes # Source is on the remote machine
 
+# Clean up downloaded archive and extracted directory from /tmp
+- name: Clean up Node Exporter download and extraction artifacts
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/{{ node_exporter_archive }}"
+    - "/tmp/node_exporter-{{ node_exporter_version }}.linux-amd64"
+    - "/tmp/sha256sums.txt" # Clean up the checksums file too
+
+# --- Tasks for configuring and managing Node Exporter service ---
+
+# Ensure Node Exporter systemd service file is in place
 - name: Ensure Node Exporter systemd service file is in place
   ansible.builtin.template:
-    src: "node_exporter.service.j2" # <-- We will create this template next
-    dest: "{{ systemd_service_dir }}/node_exporter.service" # <-- Uses variable from group_vars
+    src: "node_exporter.service.j2" # Template file in roles/node_exporter/templates/
+    dest: "/etc/systemd/system/node_exporter.service" # Standard systemd service file location
     owner: root
     group: root
-    mode: '0644'
-  notify: Restart node_exporter # Trigger handler if the service file changes
+    mode: '0644' 
+    force: yes # Standard permissions for service files
+  notify: Restart node_exporter # Notify handler to restart service if file changes
 
+# Ensure Node Exporter service is running and enabled
 - name: Ensure Node Exporter service is running and enabled
   ansible.builtin.systemd:
-    name: "{{ node_exporter_service_name }}" # <-- Uses variable from group_vars
+    name: node_exporter # Service name
     state: started
     enabled: yes
-    daemon_reload: yes # Reload systemd daemon after placing new service file
-  register: service_status # Optional: register status
+    daemon_reload: yes # Reload systemd daemon to pick up new service file
+  # No notify needed here, as the template task notifies the handler
 
-- name: Ensure firewall allows traffic to Node Exporter port (iptables)
-  ansible.builtin.iptables: # <-- Use the dedicated iptables module
-    chain: INPUT             # <-- Add rule to the INPUT chain
+# --- Tasks for configuring firewall for Node Exporter web port (OS-specific) ---
+
+# Ensure firewall allows traffic to Node Exporter web port (iptables)
+- name: Ensure firewall allows traffic to Node Exporter web port (iptables)
+  ansible.builtin.iptables:
+    chain: INPUT
     protocol: tcp
-    destination_port: "{{ node_exporter_port }}" # <-- Use port variable
-    jump: ACCEPT             # <-- Accept traffic
-    state: present           # <-- Ensure rule is present
-    comment: "Allow Node Exporter traffic" # <-- Add a comment for clarity
+    destination_port: "{{ node_exporter_web_listen_port }}" # Use the web listen port variable
+    jump: ACCEPT
+    state: present
+    comment: "Allow Node Exporter web traffic"
   when: ansible_os_family == "RedHat"
 
-- name: Ensure firewall allows traffic to Node Exporter port (UFW)
-  ansible.builtin.command: "{{ firewall_cmd }} allow {{ node_exporter_port }}/tcp"
-  when:
-    - ansible_os_family == "Debian" # Ubuntu is in Debian family
-    - firewall_cmd == "ufw" # Ensure we only run ufw commands if ufw is expected
-  notify: Reload ufw # Handler for ufw (ufw reload isn't always needed after 'allow', but good practice)
+# Ensure firewall allows traffic to Node Exporter web port (UFW) using the ufw module
+- name: Ensure firewall allows traffic to Node Exporter web port (UFW)
+  community.general.ufw: # <-- Using the ufw module
+    rule: allow
+    port: "{{ node_exporter_web_listen_port }}" # Use the web listen port variable
+    proto: tcp
+    state: enabled # Ensure the rule is enabled
+  when: ansible_os_family == "Debian"
+
+# Handlers for Node Exporter service (Restart only for now)
+# These are defined in roles/node_exporter/handlers/main.yml

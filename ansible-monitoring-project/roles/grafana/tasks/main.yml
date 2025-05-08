@@ -1,36 +1,78 @@
 # roles/grafana/tasks/main.yml
 
 ---
-# Tasks for the grafana role
+# Use include_vars to load necessary variables dynamically during the play
+# These tasks are needed because standard group_vars loading seems unreliable in this environment.
 
-# Ensure Grafana repository is added (OS-specific)
+- name: Include all variables for Grafana tasks
+  ansible.builtin.include_vars:
+    # Use the correct relative path based on your inventory structure
+    file: "../../../inventory/group_vars/all.yml"
+  # No when condition here
+
+# Include OS-specific variables based on OS family
+- name: Include RedHat specific variables for Grafana tasks
+  ansible.builtin.include_vars:
+    # Use the correct relative path based on your inventory structure
+    file: "../../../inventory/group_vars/centos_servers.yml"
+  when: ansible_os_family == "RedHat"
+
+- name: Include Debian specific variables for Grafana tasks
+  ansible.builtin.include_vars:
+    # Use the correct relative path based on your inventory structure
+    file: "../../../inventory/group_vars/ubuntu_servers.yml"
+  when: ansible_os_family == "Debian"
+
+# --- Tasks for adding Grafana repository (OS-specific) ---
+
+# Ensure Grafana repository GPG key is added on CentOS/RHEL
+- name: Ensure Grafana repository GPG key is added on CentOS/RHEL
+  ansible.builtin.rpm_key: # Add the GPG key first
+    state: present
+    key: "{{ grafana_repo_gpgkey_centos }}" # Use GPG key URL from all.yml
+  when: ansible_os_family == "RedHat"
+
+# Ensure Grafana repository is added on CentOS/RHEL
 - name: Ensure Grafana repository is added on CentOS/RHEL
   ansible.builtin.yum_repository:
-    name: "{{ grafana_repo.name }}"
-    description: "{{ grafana_repo.description }}"
-    baseurl: "{{ grafana_repo.baseurl }}"
-    gpgcheck: "{{ grafana_repo.gpgcheck }}"
-    gpgkey: "{{ grafana_repo.gpgkey }}"
-    enabled: "{{ grafana_repo.enabled }}"
+    name: "grafana"
+    description: "Grafana repository"
+    baseurl: "{{ grafana_rpm_repo_baseurl }}" # Use the corrected baseurl variable from all.yml
+    gpgcheck: yes # Keep gpgcheck yes
+    enabled: yes
     state: present
-  when: ansible_os_family == "RedHat" # Only run on RedHat-based systems
+  when: ansible_os_family == "RedHat"
 
+# Ensure Grafana repository GPG key is added on Ubuntu/Debian
+- name: Ensure Grafana repository GPG key is added on Ubuntu/Debian
+  ansible.builtin.apt_key: # Add the GPG key securely
+    url: "{{ grafana_repo_gpgkey_ubuntu }}"
+    state: present
+    keyring: /usr/share/keyrings/grafana.gpg # Recommended path for modern apt
+  when: ansible_os_family == "Debian"
+
+# Ensure Grafana repository is added on Ubuntu/Debian
 - name: Ensure Grafana repository is added on Ubuntu/Debian
   ansible.builtin.apt_repository:
-    repo: "{{ grafana_repo.repo }}" # Uses the full repo string from group_vars
-    state: "{{ grafana_repo.state }}"
-    filename: "{{ grafana_repo.filename }}"
-    update_cache: "{{ grafana_repo.update_cache }}"
-  when: ansible_os_family == "Debian" # Only run on Debian-based systems
+    # Correct repo string format: baseurl, then 'stable', then 'main'
+    repo: "deb [signed-by=/usr/share/keyrings/grafana.gpg] {{ grafana_apt_repo_baseurl }} stable main"
+    # Removed the duplicate state: line
+    state: present # Ensure the state is explicitly present
+    filename: grafana
+    update_cache: yes
+  when: ansible_os_family == "Debian"
 
-# Ensure Grafana package is installed (uses OS-specific package manager via common role variable)
+# --- Task for installing Grafana package ---
+
+# Ensure Grafana package is installed (uses OS-specific package manager)
 - name: Ensure Grafana package is installed
   ansible.builtin.package:
     name: grafana # The package name is usually 'grafana' on both
     state: present
-  # We don't need an OS-specific when here because the package module
-  # automatically uses the correct package manager (yum/dnf or apt)
-  # based on ansible_pkg_mgr fact (which is set by common role/gather_facts)
+  # This task will run on both OS families where the role is applied.
+  # The package module automatically uses yum/dnf or apt based on facts.
+
+# --- Tasks for managing Grafana service ---
 
 # Ensure Grafana service is running and enabled
 - name: Ensure Grafana service is running and enabled
@@ -40,8 +82,9 @@
     enabled: yes
     daemon_reload: yes
 
-# Ensure firewall allows traffic to Grafana web port (OS-specific)
-# We reuse the firewall variables and logic from the prometheus role tasks
+# --- Tasks for configuring firewall for Grafana web port (OS-specific) ---
+
+# Ensure firewall allows traffic to Grafana web port (iptables)
 - name: Ensure firewall allows traffic to Grafana web port (iptables)
   ansible.builtin.iptables:
     chain: INPUT
@@ -59,11 +102,10 @@
     - firewall_cmd == "ufw"
   # No notify needed here unless we add a handler to reload firewalls
 
-# --- Tasks for configuring Prometheus Data Source ---
+# --- Tasks for configuring Prometheus Data Source in Grafana ---
 
 # Grafana allows configuring data sources via a configuration file provisioned
-# in a specific directory. This is a common and idempotent approach.
-# We'll create a directory for data source provisioning and place a YAML config file there.
+# in a specific directory.
 
 - name: Ensure Grafana data source provisioning directory exists
   ansible.builtin.file:
@@ -75,7 +117,7 @@
 
 - name: Ensure Prometheus data source configuration is in place
   ansible.builtin.template:
-    src: "prometheus_datasource.yml.j2" # <-- We will create this template next
+    src: "prometheus_datasource.yml.j2" # <-- Template file in roles/grafana/templates/
     dest: "/etc/grafana/provisioning/datasources/prometheus.yml" # Standard provisioning path
     owner: root
     group: grafana
@@ -83,4 +125,4 @@
   notify: Restart grafana-server # Restart Grafana to pick up new data source config
 
 # Handlers for Grafana service (Restart only for now, reload less common for config)
-# We will create these handlers in handlers/main.yml
+# These are defined in roles/grafana/handlers/main.yml

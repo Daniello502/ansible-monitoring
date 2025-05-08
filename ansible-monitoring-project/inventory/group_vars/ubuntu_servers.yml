@@ -26,8 +26,9 @@ node_exporter_install_dir: "/usr/local/bin"
 # Firewall command for Ubuntu (using ufw)
 firewall_cmd: "ufw"
 
-grafana_repo:
-  repo: "deb [signed-by=/usr/share/keyrings/grafana.gpg] {{ grafana_repo_baseurl_ubuntu }} stable main" # Repo string for apt
+# Grafana Repository Configuration for Ubuntu/Debian (uses variables from all.yml and this file)
+grafana_repo: # This structure is used by apt_repository
+  repo: "deb [signed-by=/usr/share/keyrings/grafana.gpg] {{ grafana_apt_repo_baseurl }} {{ grafana_apt_repo_release }} {{ grafana_apt_repo_components }}"
   state: present
-  filename: grafana
+  filename: grafana # Name of the repo file in /etc/apt/sources.list.d/
   update_cache: yes # Update apt cache after adding repo

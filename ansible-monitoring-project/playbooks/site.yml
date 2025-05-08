@@ -1,31 +1,89 @@
-# This playbook deploys monitoring agents and servers using Ansible roles.
-# It includes tasks for installing and configuring Node Exporter, Prometheus, and Grafana.
+# playbooks/site.yml
+---
+# This playbook orchestrates the deployment of the monitoring stack.
+# It includes roles for common system setup, Node Exporter, Prometheus, and Grafana.
 
-- name: Deploy Monitoring Agents (Node Exporter)
-  hosts: monitoring_agents # <-- This play targets the agents
-  become: yes
-  gather_facts: yes
+- name: Apply common system configurations
+  hosts: all # Apply common configurations to all hosts in the inventory
+  become: yes # Run tasks with elevated privileges
+  gather_facts: yes # Gather facts about the target systems
 
   roles:
-    - role: common
-    - role: node_exporter
+    - role: common # Apply the common role
+      # Variables for the common role should be defined in group_vars/all.yml
+      # and potentially OS-specific group_vars files.
 
-- name: Deploy Prometheus and Grafana Servers
-  hosts: monitoring_servers # <-- This play targets the monitoring servers
-  become: yes
-  gather_facts: yes
+- name: Deploy Monitoring Stack Servers (Prometheus and Grafana)
+  hosts: monitoring_servers # Target only hosts in the monitoring_servers group
+  become: yes # Run tasks with elevated privileges
+  gather_facts: yes # Gather facts about the target systems
 
-  # Keep the vars section to ensure variables like firewall_cmd are defined
-  vars:
+  vars: # <-- Keep only necessary play-level variables here
+    # --- Common variables for this play (e.g., firewall command) ---
     firewall_cmd: >-
+      {% if ansible_os_family == 'RedHat' %} "firewall-cmd"
+      {% elif ansible_os_family == 'Debian' %} "ufw"
+      {% else %} "unknown_firewall" {% endif %}
+
+    # --- Grafana variables defined directly in play vars (Optional, but can help ensure availability) ---
+    # You could move these to group_vars/all.yml and use include_vars in the grafana role,
+    # but keeping key server variables here is sometimes done for clarity.
+    # Ensure these are defined in group_vars/all.yml as well if you move them.
+    grafana_web_port: 3000
+    grafana_rpm_repo_baseurl: "https://rpm.grafana.com/oss/rpm"
+    grafana_repo_gpgkey_centos: "https://rpm.grafana.com/gpg.key"
+    grafana_apt_repo_baseurl: "https://apt.grafana.com/"
+    grafana_apt_repo_release: "stable"
+    grafana_apt_repo_components: "main"
+    grafana_repo_gpgkey_ubuntu: "https://apt.grafana.com/gpg.key"
+
+    # Define the grafana_repo dictionary structure conditionally (Optional, see above)
+    grafana_repo: > # Use '>' to fold the multi-line YAML/Jinja into a single variable value
       {% if ansible_os_family == 'RedHat' %}
-      "firewall-cmd"
+      # RedHat repo definition
+      name: grafana
+      description: Grafana repository
+      baseurl: "{{ grafana_rpm_repo_baseurl }}"
+      gpgcheck: yes
+      gpgkey: "{{ grafana_repo_gpgkey_centos }}"
+      enabled: yes
       {% elif ansible_os_family == 'Debian' %}
-      "ufw"
+      # Debian repo definition (uses other vars defined above in this vars section)
+      # Note: grafana_ubuntu_codename is not strictly needed for the repo line format
+      # but if other tasks use it, define it here conditionally:
+      grafana_ubuntu_codename: "jammy" # <-- IMPORTANT: REPLACE with YOUR Ubuntu VM's actual codename if needed
+      repo: "deb [signed-by=/usr/share/keyrings/grafana.gpg] {{ grafana_apt_repo_baseurl }} {{ grafana_apt_repo_release }} {{ grafana_ubuntu_codename }} {{ grafana_apt_repo_components }}"
+      state: present
+      filename: grafana
+      update_cache: yes
       {% else %}
-      "unknown_firewall"
+      {} # Empty dictionary for other OS families
       {% endif %}
 
   roles:
-    - role: prometheus # <-- Include the prometheus role
-    - role: grafana # <-- Include the grafana role
+    # Apply the prometheus role only to the prometheus server
+    - role: prometheus
+      when: inventory_hostname == 'server_for_prometheus'
+      # Variables for the prometheus role should be defined in group_vars/all.yml
+      # and potentially OS-specific group_vars files.
+
+    # Apply the grafana role only to the grafana server
+    - role: grafana
+      when: inventory_hostname == 'server_for_grafana'
+      # Variables for the grafana role should be defined in group_vars/all.yml
+      # and potentially OS-specific group_vars files.
+
+    # Apply the node_exporter role to all monitoring agents (all hosts in monitoring_agents group)
+    # Assuming monitoring_agents group contains all hosts except the prometheus/grafana servers
+    # If monitoring_servers group includes all agents, adjust the when condition or hosts
+    - role: node_exporter
+      # Apply to all hosts in the monitoring_agents group
+      # If monitoring_servers includes all agents, you might need:
+      # when: inventory_hostname in groups['monitoring_agents']
+      # Or if monitoring_servers is ALL agents:
+      # when: inventory_hostname != 'server_for_prometheus' and inventory_hostname != 'server_for_grafana'
+      when: inventory_hostname in groups['monitoring_agents'] # <-- Use this if you have a separate agents group
+      # If monitoring_servers is ALL agents, use this instead:
+      # when: inventory_hostname != 'server_for_prometheus' and inventory_hostname != 'server_for_grafana' # <-- Use this if monitoring_servers is ALL agents
+      # Variables for the node_exporter role should be defined in group_vars/all.yml
+      # and potentially OS-specific group_vars files.
